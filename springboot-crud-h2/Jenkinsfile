@@ -1,10 +1,67 @@
 pipeline {
     agent any
+
+    tools {
+        jdk 'jdk17'           // Make sure 'jdk17' is configured in Jenkins
+        maven 'maven-3.9'    // Make sure 'maven-3.9' is configured in Jenkins
+    }
+
+    environment {
+        JAVA_HOME = "${tool 'jdk17'}"
+        MAVEN_HOME = "${tool 'maven-3.9'}"
+        PATH = "${JAVA_HOME}\\bin;${MAVEN_HOME}\\bin;%PATH%"
+        SPRING_PROFILES_ACTIVE = "dev"
+        APP_NAME = "springboot-crud-h2"
+        APP_VERSION = "0.0.1-SNAPSHOT"
+    }
+
     stages {
-        stage('Test') {
+
+        stage('Check Environment') {
             steps {
-                echo "Hello, Jenkins!"
+                echo "Checking PATH and installed tools"
+                bat 'echo %PATH%'
+                bat 'where cmd'
+                bat 'java -version'
+                bat 'mvn -version'
             }
+        }
+
+        stage('Checkout') {
+            steps {
+                echo '📥 Checking out source code from GitHub...'
+                checkout scm
+            }
+        }
+
+        stage('Build & Unit Tests') {
+            steps {
+                echo '🏗️ Building Spring Boot project and running unit tests...'
+                bat 'mvn clean package'
+            }
+        }
+
+        stage('Integration Tests') {
+            steps {
+                echo '🔬 Running integration tests (if any)...'
+                bat 'mvn verify'
+            }
+        }
+
+        stage('Archive Artifact') {
+            steps {
+                echo '📦 Archiving JAR/WAR artifact...'
+                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed — check logs for errors.'
         }
     }
 }
