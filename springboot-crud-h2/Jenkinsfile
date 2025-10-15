@@ -1,0 +1,90 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven-3.9'
+        jdk 'jdk17'
+    }
+
+    environment {
+        JAVA_HOME = "${tool 'jdk17'}"
+        MAVEN_HOME = "${tool 'maven-3.9'}"
+        PATH = "${MAVEN_HOME}/bin:${JAVA_HOME}/bin:${env.PATH}"
+
+        // Environment profiles
+        SPRING_PROFILES_ACTIVE = "dev"
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo '📥 Checking out source code from GitHub...'
+                checkout scm
+            }
+        }
+
+        stage('Build & Unit Tests') {
+            steps {
+                echo '🏗️ Building Spring Boot project and running unit tests...'
+                bat 'mvn clean package'
+            }
+        }
+
+        stage('Integration Tests') {
+            steps {
+                echo '🧪 Running Integration Tests...'
+                // Optional: You can run with a specific Maven profile or integration suite
+                bat 'mvn verify -Pintegration'
+            }
+        }
+
+        stage('Staging Deployment') {
+            when {
+                branch 'develop'
+            }
+            steps {
+                echo '🚀 Deploying build to STAGING environment...'
+                bat '''
+                echo Starting application in STAGING mode...
+                java -jar target\\springboot-crud-h2-0.0.1-SNAPSHOT.jar --spring.profiles.active=staging
+                '''
+            }
+        }
+
+        stage('Approval for Production') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    timeout(time: 2, unit: 'HOURS') {
+                        input message: "Approve deployment to Production?"
+                    }
+                }
+            }
+        }
+
+        stage('Production Deployment') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo '🚀 Deploying build to PRODUCTION environment...'
+                bat '''
+                echo Starting application in PRODUCTION mode...
+                java -jar target\\springboot-crud-h2-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed — check logs.'
+        }
+    }
+}
