@@ -33,9 +33,7 @@ pipeline {
 
         stage('Determine Environment') {
             steps {
-                script {
-                    echo "Environment set to ${env.APP_ENV}"
-                }
+                echo "Environment set to ${env.APP_ENV}"
             }
         }
 
@@ -61,8 +59,11 @@ pipeline {
             steps {
                 echo "🚀 Deploying ${env.APP_ENV} .jar"
                 dir('springboot-crud-h2/target') {
-                    // Replace this with your actual deployment command
-                    bat "copy springboot-crud-h2-1.0.0.jar C:\\Deployments\\${env.APP_ENV}\\"
+                    // Create deployment folder if it does not exist
+                    bat """
+                        if not exist "C:\\Deployments\\${env.APP_ENV}" mkdir "C:\\Deployments\\${env.APP_ENV}"
+                        copy springboot-crud-h2-1.0.0.jar "C:\\Deployments\\${env.APP_ENV}\\"
+                    """
                 }
             }
         }
@@ -70,7 +71,7 @@ pipeline {
         stage('Monitor Logs') {
             steps {
                 echo "📄 Monitoring logs for ${env.APP_ENV}"
-                // Example: tail the last 50 lines of the log (Windows PowerShell)
+                // Tail last 50 lines of the log (PowerShell)
                 bat "powershell -Command \"Get-Content C:\\Deployments\\${env.APP_ENV}\\springboot-crud-h2.log -Tail 50\""
             }
         }
