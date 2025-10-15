@@ -1,24 +1,19 @@
 pipeline {
     agent any
 
-    tools {
-        // Make sure these names match your Jenkins Global Tool Configuration
-        maven 'maven-3.9'
-        jdk 'jdk17'
-    }
-
     environment {
-        JAVA_HOME = "${tool 'jdk17'}"
-        MAVEN_HOME = "${tool 'maven-3.9'}"
+        JAVA_HOME = "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.16.8-hotspot"
+        MAVEN_HOME = "C:\\Program Files\\apache-maven-3.9.11"
         PATH = "${JAVA_HOME}\\bin;${MAVEN_HOME}\\bin;%PATH%"
-
-        SPRING_PROFILES_ACTIVE = "dev"
         APP_NAME = "springboot-crud-h2"
         APP_VERSION = "0.0.1-SNAPSHOT"
+        DEPLOY_DIR_DEV = "C:\\springboot-apps\\dev"
+        DEPLOY_DIR_STAGING = "C:\\springboot-apps\\staging"
+        DEPLOY_DIR_PROD = "C:\\springboot-apps\\prod"
+        LOG_DIR = "C:\\springboot-apps\\logs"
     }
 
     stages {
-
         stage('Check Environment') {
             steps {
                 echo "🔍 Checking PATH and tools"
@@ -36,48 +31,84 @@ pipeline {
             }
         }
 
+        stage('Determine Environment') {
+            steps {
+                script {
+                    if (env.BRANCH_NAME == 'main') {
+                        env.DEPLOY_ENV = 'prod'
+                        env.DEPLOY_DIR = env.DEPLOY_DIR_PROD
+                        env.SPRING_PROFILE = 'prod'
+                        env.NEEDS_APPROVAL = true
+                    } else if (env.BRANCH_NAME == 'develop') {
+                        env.DEPLOY_ENV = 'staging'
+                        env.DEPLOY_DIR = env.DEPLOY_DIR_STAGING
+                        env.SPRING_PROFILE = 'staging'
+                        env.NEEDS_APPROVAL = false
+                    } else {
+                        env.DEPLOY_ENV = 'dev'
+                        env.DEPLOY_DIR = env.DEPLOY_DIR_DEV
+                        env.SPRING_PROFILE = 'dev'
+                        env.NEEDS_APPROVAL = false
+                    }
+
+                    echo "📌 Branch: ${env.BRANCH_NAME} → Environment: ${env.DEPLOY_ENV}"
+                }
+            }
+        }
+
         stage('Build & Unit Tests') {
             steps {
                 echo '🏗️ Building Spring Boot project and running unit tests...'
-                bat 'mvn clean package'
-            }
-        }
-
-        stage('Integration Tests') {
-            steps {
-                echo '🧪 Running integration tests...'
-                // Add your integration test commands here
-                // bat 'mvn verify -Pintegration-tests'
-            }
-        }
-
-        stage('Staging Deployment') {
-            steps {
-                echo '🚀 Deploying to staging environment...'
-                // Add your staging deployment commands here
+                bat "mvn clean package -DskipTests=false"
             }
         }
 
         stage('Approval for Production') {
+            when {
+                expression { env.NEEDS_APPROVAL == "true" }
+            }
             steps {
-                input message: "Approve deployment to production?", ok: "Deploy"
+                input message: "🚨 Approve deployment to PRODUCTION?", ok: "Deploy"
             }
         }
 
-        stage('Production Deployment') {
+        stage('Deploy') {
             steps {
-                echo '🚀 Deploying to production environment...'
-                // Add your production deployment commands here
+                script {
+                    // Create directories if not exist
+                    bat "if not exist ${env.DEPLOY_DIR} mkdir ${env.DEPLOY_DIR}"
+                    bat "if not exist ${env.LOG_DIR} mkdir ${env.LOG_DIR}"
+
+                    // Stop previous instance if running
+                    bat "taskkill /F /IM java.exe || echo 'No previous instance running'"
+
+                    // Copy jar to deployment directory
+                    bat "copy target\\${APP_NAME}-${APP_VERSION}.jar ${env.DEPLOY_DIR}\\${APP_NAME}.jar /Y"
+
+                    // Start the app with Spring profile and log
+                    bat "start java -jar ${env.DEPLOY_DIR}\\${APP_NAME}.jar --spring.profiles.active=${env.SPRING_PROFILE} > ${env.LOG_DIR}\\${APP_NAME}-${env.DEPLOY_ENV}.log 2>&1"
+
+                    echo "✅ Deployment started. Logs: ${env.LOG_DIR}\\${APP_NAME}-${env.DEPLOY_ENV}.log"
+                }
+            }
+        }
+
+        stage('Monitor Logs') {
+            steps {
+                script {
+                    echo "📄 Displaying last 20 lines of logs..."
+                    bat "powershell -Command Get-Content ${env.LOG_DIR}\\${APP_NAME}-${env.DEPLOY_ENV}.log -Tail 20 -Wait"
+                }
             }
         }
     }
 
     post {
         success {
-            echo '✅ Pipeline completed successfully!'
+            echo '✅ CI/CD pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed — check logs for errors.'
+            echo '❌ Pipeline failed — check logs.'
         }
     }
 }
