@@ -2,14 +2,16 @@ pipeline {
     agent any
 
     tools {
-        jdk 'jdk17'           // Make sure 'jdk17' is configured in Jenkins
-        maven 'maven 3.9'    // Make sure 'maven-3.9' is configured in Jenkins
+        // Make sure these names match your Jenkins Global Tool Configuration
+        maven 'maven-3.9'
+        jdk 'jdk17'
     }
 
     environment {
         JAVA_HOME = "${tool 'jdk17'}"
         MAVEN_HOME = "${tool 'maven-3.9'}"
         PATH = "${JAVA_HOME}\\bin;${MAVEN_HOME}\\bin;%PATH%"
+
         SPRING_PROFILES_ACTIVE = "dev"
         APP_NAME = "springboot-crud-h2"
         APP_VERSION = "0.0.1-SNAPSHOT"
@@ -19,7 +21,7 @@ pipeline {
 
         stage('Check Environment') {
             steps {
-                echo "Checking PATH and installed tools"
+                echo "🔍 Checking PATH and tools"
                 bat 'echo %PATH%'
                 bat 'where cmd'
                 bat 'java -version'
@@ -43,15 +45,29 @@ pipeline {
 
         stage('Integration Tests') {
             steps {
-                echo '🔬 Running integration tests (if any)...'
-                bat 'mvn verify'
+                echo '🧪 Running integration tests...'
+                // Add your integration test commands here
+                // bat 'mvn verify -Pintegration-tests'
             }
         }
 
-        stage('Archive Artifact') {
+        stage('Staging Deployment') {
             steps {
-                echo '📦 Archiving JAR/WAR artifact...'
-                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+                echo '🚀 Deploying to staging environment...'
+                // Add your staging deployment commands here
+            }
+        }
+
+        stage('Approval for Production') {
+            steps {
+                input message: "Approve deployment to production?", ok: "Deploy"
+            }
+        }
+
+        stage('Production Deployment') {
+            steps {
+                echo '🚀 Deploying to production environment...'
+                // Add your production deployment commands here
             }
         }
     }
