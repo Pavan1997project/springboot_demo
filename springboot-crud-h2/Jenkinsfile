@@ -1,26 +1,31 @@
 pipeline {
     agent any
 
-    // Define environment variables for tools
     environment {
+        // Choose environment: dev, staging, prod
+        APP_ENV = 'dev'
         JAVA_HOME = 'C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.16.8-hotspot'
         MAVEN_HOME = 'C:\\Program Files\\apache-maven-3.9.11'
         PATH = "${env.JAVA_HOME}\\bin;${env.MAVEN_HOME}\\bin;${env.PATH}"
+    }
+
+    options {
+        skipStagesAfterUnstable()
+        timestamps()
     }
 
     stages {
 
         stage('Checkout SCM') {
             steps {
-                echo "🔄 Checking out source code"
+                echo "🗂 Checking out source code"
                 checkout scm
             }
         }
 
         stage('Check Tools') {
             steps {
-                echo "🛠 Verifying environment tools"
-                bat 'where cmd'
+                echo "🛠 Verifying Java and Maven"
                 bat 'java -version'
                 bat 'mvn -version'
             }
@@ -29,8 +34,6 @@ pipeline {
         stage('Determine Environment') {
             steps {
                 script {
-                    // Example: set environment profile
-                    env.APP_ENV = 'dev' // change to 'staging' or 'prod' when needed
                     echo "Environment set to ${env.APP_ENV}"
                 }
             }
@@ -38,8 +41,10 @@ pipeline {
 
         stage('Build & Unit Tests') {
             steps {
-                echo "📦 Building Spring Boot application and running unit tests"
-                bat "mvn clean package -P${env.APP_ENV}"
+                echo "📦 Building Spring Boot app with profile: ${env.APP_ENV}"
+                dir('springboot-crud-h2') {
+                    bat "mvn clean package -P${env.APP_ENV}"
+                }
             }
         }
 
@@ -48,44 +53,35 @@ pipeline {
                 expression { env.APP_ENV == 'prod' }
             }
             steps {
-                input message: "Do you want to deploy to Production?", ok: "Deploy"
+                input message: 'Approve deployment to PRODUCTION?', ok: 'Deploy'
             }
         }
 
         stage('Deploy') {
             steps {
-                echo "🚀 Deploying application for ${env.APP_ENV}"
-                script {
-                    def jarFile = "target\\springboot_demo-0.0.1-SNAPSHOT.jar"
-                    
-                    if (env.APP_ENV == 'dev') {
-                        bat "copy ${jarFile} C:\\deployments\\dev\\"
-                    } else if (env.APP_ENV == 'staging') {
-                        bat "copy ${jarFile} C:\\deployments\\staging\\"
-                    } else if (env.APP_ENV == 'prod') {
-                        bat "copy ${jarFile} C:\\deployments\\prod\\"
-                    }
+                echo "🚀 Deploying ${env.APP_ENV} .jar"
+                dir('springboot-crud-h2/target') {
+                    // Replace this with your actual deployment command
+                    bat "copy springboot-crud-h2-1.0.0.jar C:\\Deployments\\${env.APP_ENV}\\"
                 }
             }
         }
 
         stage('Monitor Logs') {
             steps {
-                echo "📖 Monitoring application logs (last 20 lines)"
-                script {
-                    def logFile = "C:\\deployments\\${env.APP_ENV}\\app.log"
-                    bat "powershell -Command \"Get-Content -Path ${logFile} -Tail 20 -Wait\""
-                }
+                echo "📄 Monitoring logs for ${env.APP_ENV}"
+                // Example: tail the last 50 lines of the log (Windows PowerShell)
+                bat "powershell -Command \"Get-Content C:\\Deployments\\${env.APP_ENV}\\springboot-crud-h2.log -Tail 50\""
             }
         }
     }
 
     post {
         success {
-            echo "✅ Pipeline completed successfully!"
+            echo "✅ Pipeline finished successfully!"
         }
         failure {
-            echo "❌ Pipeline failed! Check above logs for details."
+            echo "❌ Pipeline failed! Check logs above."
         }
     }
 }
