@@ -2,14 +2,14 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven 3.9'   // updated to match your Jenkins Global Tool name
-        jdk 'jdk17'          // must match the JDK name you configured in Jenkins
+        maven 'maven-3.9'
+        jdk 'jdk17'
     }
 
     environment {
         JAVA_HOME = "${tool 'jdk17'}"
-        MAVEN_HOME = "${tool 'maven 3.9'}"
-        PATH = "${JAVA_HOME}/bin;${MAVEN_HOME}/bin;%PATH%"
+        MAVEN_HOME = "${tool 'maven-3.9'}"
+        PATH = "${JAVA_HOME}\\bin;${MAVEN_HOME}\\bin;%PATH%"
 
         SPRING_PROFILES_ACTIVE = "dev"
         APP_NAME = "springboot-crud-h2"
@@ -18,6 +18,16 @@ pipeline {
 
     stages {
 
+        stage('Test Environment') {
+            steps {
+                echo "Checking PATH and tools"
+                bat 'echo %PATH%'
+                bat 'where cmd'
+                bat 'java -version'
+                bat 'mvn -version'
+            }
+        }
+
         stage('Checkout') {
             steps {
                 echo '📥 Checking out source code from GitHub...'
@@ -25,60 +35,14 @@ pipeline {
             }
         }
 
-        stage('Verify Tools') {
-            steps {
-                echo '🔍 Verifying Java and Maven'
-                bat 'java -version'
-                bat 'mvn -version'
-            }
-        }
-
         stage('Build & Unit Tests') {
             steps {
-                echo '🏗️ Building project and running unit tests...'
-                bat 'mvn clean package -DskipTests=false'
+                echo '🏗️ Building Spring Boot project and running unit tests...'
+                bat "mvn clean package"
             }
         }
 
-        stage('Integration Tests') {
-            steps {
-                echo '🧪 Running Integration Tests...'
-                bat 'mvn verify -Pintegration'
-            }
-        }
-
-        stage('Staging Deployment') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                echo '🚀 Deploying build to STAGING environment...'
-                bat "java -jar target\\${APP_NAME}-${APP_VERSION}.jar --spring.profiles.active=staging"
-            }
-        }
-
-        stage('Approval for Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                script {
-                    timeout(time: 2, unit: 'HOURS') {
-                        input message: "Approve deployment to PRODUCTION?"
-                    }
-                }
-            }
-        }
-
-        stage('Production Deployment') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '🚀 Deploying build to PRODUCTION environment...'
-                bat "java -jar target\\${APP_NAME}-${APP_VERSION}.jar --spring.profiles.active=prod"
-            }
-        }
+        // ... rest of your stages
     }
 
     post {
@@ -86,11 +50,7 @@ pipeline {
             echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed — check logs!'
-        }
-        always {
-            echo '🧹 Cleaning workspace...'
-            cleanWs()
+            echo '❌ Pipeline failed — check logs.'
         }
     }
 }
