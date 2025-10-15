@@ -2,17 +2,18 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven-3.9'
-        jdk 'jdk17'
+        maven 'maven 3.9'   // updated to match your Jenkins Global Tool name
+        jdk 'jdk17'          // must match the JDK name you configured in Jenkins
     }
 
     environment {
         JAVA_HOME = "${tool 'jdk17'}"
-        MAVEN_HOME = "${tool 'maven-3.9'}"
-        PATH = "${MAVEN_HOME}/bin:${JAVA_HOME}/bin:${env.PATH}"
+        MAVEN_HOME = "${tool 'maven 3.9'}"
+        PATH = "${JAVA_HOME}/bin;${MAVEN_HOME}/bin;%PATH%"
 
-        // Environment profiles
         SPRING_PROFILES_ACTIVE = "dev"
+        APP_NAME = "springboot-crud-h2"
+        APP_VERSION = "0.0.1-SNAPSHOT"
     }
 
     stages {
@@ -24,17 +25,24 @@ pipeline {
             }
         }
 
+        stage('Verify Tools') {
+            steps {
+                echo '🔍 Verifying Java and Maven'
+                bat 'java -version'
+                bat 'mvn -version'
+            }
+        }
+
         stage('Build & Unit Tests') {
             steps {
-                echo '🏗️ Building Spring Boot project and running unit tests...'
-                bat 'mvn clean package'
+                echo '🏗️ Building project and running unit tests...'
+                bat 'mvn clean package -DskipTests=false'
             }
         }
 
         stage('Integration Tests') {
             steps {
                 echo '🧪 Running Integration Tests...'
-                // Optional: You can run with a specific Maven profile or integration suite
                 bat 'mvn verify -Pintegration'
             }
         }
@@ -45,10 +53,7 @@ pipeline {
             }
             steps {
                 echo '🚀 Deploying build to STAGING environment...'
-                bat '''
-                echo Starting application in STAGING mode...
-                java -jar target\\springboot-crud-h2-0.0.1-SNAPSHOT.jar --spring.profiles.active=staging
-                '''
+                bat "java -jar target\\${APP_NAME}-${APP_VERSION}.jar --spring.profiles.active=staging"
             }
         }
 
@@ -59,7 +64,7 @@ pipeline {
             steps {
                 script {
                     timeout(time: 2, unit: 'HOURS') {
-                        input message: "Approve deployment to Production?"
+                        input message: "Approve deployment to PRODUCTION?"
                     }
                 }
             }
@@ -71,10 +76,7 @@ pipeline {
             }
             steps {
                 echo '🚀 Deploying build to PRODUCTION environment...'
-                bat '''
-                echo Starting application in PRODUCTION mode...
-                java -jar target\\springboot-crud-h2-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
-                '''
+                bat "java -jar target\\${APP_NAME}-${APP_VERSION}.jar --spring.profiles.active=prod"
             }
         }
     }
@@ -84,7 +86,11 @@ pipeline {
             echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed — check logs.'
+            echo '❌ Pipeline failed — check logs!'
+        }
+        always {
+            echo '🧹 Cleaning workspace...'
+            cleanWs()
         }
     }
 }
