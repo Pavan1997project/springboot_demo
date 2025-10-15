@@ -1,12 +1,91 @@
 pipeline {
     agent any
+
+    // Define environment variables for tools
+    environment {
+        JAVA_HOME = 'C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.16.8-hotspot'
+        MAVEN_HOME = 'C:\\Program Files\\apache-maven-3.9.11'
+        PATH = "${env.JAVA_HOME}\\bin;${env.MAVEN_HOME}\\bin;${env.PATH}"
+    }
+
     stages {
-        stage('Check CMD') {
+
+        stage('Checkout SCM') {
             steps {
+                echo "🔄 Checking out source code"
+                checkout scm
+            }
+        }
+
+        stage('Check Tools') {
+            steps {
+                echo "🛠 Verifying environment tools"
                 bat 'where cmd'
                 bat 'java -version'
                 bat 'mvn -version'
             }
+        }
+
+        stage('Determine Environment') {
+            steps {
+                script {
+                    // Example: set environment profile
+                    env.APP_ENV = 'dev' // change to 'staging' or 'prod' when needed
+                    echo "Environment set to ${env.APP_ENV}"
+                }
+            }
+        }
+
+        stage('Build & Unit Tests') {
+            steps {
+                echo "📦 Building Spring Boot application and running unit tests"
+                bat "mvn clean package -P${env.APP_ENV}"
+            }
+        }
+
+        stage('Approval for Production') {
+            when {
+                expression { env.APP_ENV == 'prod' }
+            }
+            steps {
+                input message: "Do you want to deploy to Production?", ok: "Deploy"
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "🚀 Deploying application for ${env.APP_ENV}"
+                script {
+                    def jarFile = "target\\springboot_demo-0.0.1-SNAPSHOT.jar"
+                    
+                    if (env.APP_ENV == 'dev') {
+                        bat "copy ${jarFile} C:\\deployments\\dev\\"
+                    } else if (env.APP_ENV == 'staging') {
+                        bat "copy ${jarFile} C:\\deployments\\staging\\"
+                    } else if (env.APP_ENV == 'prod') {
+                        bat "copy ${jarFile} C:\\deployments\\prod\\"
+                    }
+                }
+            }
+        }
+
+        stage('Monitor Logs') {
+            steps {
+                echo "📖 Monitoring application logs (last 20 lines)"
+                script {
+                    def logFile = "C:\\deployments\\${env.APP_ENV}\\app.log"
+                    bat "powershell -Command \"Get-Content -Path ${logFile} -Tail 20 -Wait\""
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline failed! Check above logs for details."
         }
     }
 }
