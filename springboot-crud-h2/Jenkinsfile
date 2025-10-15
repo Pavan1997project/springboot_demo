@@ -1,100 +1,13 @@
 pipeline {
     agent any
-
-    tools {
-        maven 'maven 3.9'   // Correct Maven tool name
-        jdk 'jdk17'         // Make sure JDK 17 is configured with this exact name
-    }
-
-    environment {
-        JAVA_HOME = "${tool 'jdk17'}"
-        MAVEN_HOME = "${tool 'maven 3.9'}"
-        PATH = "${JAVA_HOME}\\bin;${MAVEN_HOME}\\bin;%PATH%"
-
-        SPRING_PROFILES_ACTIVE = "dev"
-        APP_NAME = "springboot-crud-h2"
-        APP_VERSION = "0.0.1-SNAPSHOT"
-    }
-
     stages {
-
-        stage('Test Environment') {
+        stage('Check PATH') {
             steps {
-                echo "🔍 Checking PATH and tools"
                 bat 'echo %PATH%'
                 bat 'where cmd'
                 bat 'java -version'
                 bat 'mvn -version'
             }
-        }
-
-        stage('Checkout') {
-            steps {
-                echo '📥 Checking out source code from GitHub...'
-                checkout scm
-            }
-        }
-
-        stage('Build & Unit Tests') {
-            steps {
-                echo '🏗️ Building Spring Boot project and running unit tests...'
-                bat 'mvn clean package'
-            }
-        }
-
-        stage('Integration Tests') {
-            steps {
-                echo '🧪 Running Integration Tests...'
-                bat 'mvn verify -Pintegration'
-            }
-        }
-
-        stage('Staging Deployment') {
-            when {
-                branch 'develop'
-            }
-            steps {
-                echo '🚀 Deploying build to STAGING environment...'
-                bat '''
-                echo Starting application in STAGING mode...
-                java -jar target\\springboot-crud-h2-0.0.1-SNAPSHOT.jar --spring.profiles.active=staging
-                '''
-            }
-        }
-
-        stage('Approval for Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                script {
-                    timeout(time: 2, unit: 'HOURS') {
-                        input message: "Approve deployment to Production?"
-                    }
-                }
-            }
-        }
-
-        stage('Production Deployment') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '🚀 Deploying build to PRODUCTION environment...'
-                bat '''
-                echo Starting application in PRODUCTION mode...
-                java -jar target\\springboot-crud-h2-0.0.1-SNAPSHOT.jar --spring.profiles.active=prod
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo '✅ Pipeline completed successfully!'
-        }
-        failure {
-            echo '❌ Pipeline failed — check logs.'
         }
     }
 }
